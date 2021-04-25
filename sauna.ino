@@ -10,13 +10,16 @@
 
 #include "gfxfont.h"
 #include "FreeMonoBold24pt7b.h"
-//#include "FreeSansBold24pt7b.h"
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
 const int XP=6,XM=A2,YP=A1,YM=7; //ID=0x9341
 
+// Temperature hysteresis in degrees
+#define HYSTERESIS 2
+
+// Output to drive Heater
 #define HEATING_OUT     27
 
 // Assign human-readable names to some common 16-bit color values:
@@ -73,7 +76,6 @@ Adafruit_GFX_Button btn_on;
 
 Timer<1, millis> timer_btn;
 
-#define HYSTERESIS 2
 
 uint16_t temp_out = 0;
 
@@ -93,6 +95,7 @@ enum {
 } state, last_state;
 
 
+// Read out current temperature
 bool timer_sensor_cb(void* temp)
 {
     uint16_t* tmp = (uint16_t*) temp;
@@ -104,6 +107,7 @@ bool timer_sensor_cb(void* temp)
 }
 
 
+// Store the thetarget temperature to the EEPROM
 bool timer_btm_cb(void* temp)
 {
     uint8_t* tmp = (uint8_t*)temp;
@@ -141,106 +145,6 @@ bool timer_btm_cb(void* temp)
     return false;
 }
 
-void setup() {
-    pinMode(HEATING_OUT, OUTPUT);
-    digitalWrite(HEATING_OUT, LOW);
-
-    Serial.begin(9600); // open the serial port at 9600 bps:
-
-    last_state = OFF;
-    state = ON;
-
-    // Init TFT
-    uint16_t identifier = lcd.readID();
-    if (identifier == 0x0101) identifier = 0x9341;
-    lcd.begin(identifier);
-    lcd.setRotation(3);
-    lcd.fillScreen(BLACK);
-
-    // Read the target value from EEPROM
-    for (int i = 0; i < EEPROM_MAX_SIZE; i++) {
-        uint8_t value = EEPROM.read(i);
-        /*
-        Serial.print(i);
-        Serial.print(' ');
-        Serial.println(value);
-        */
-        if (value != 255) {
-            target = value;
-        } else {
-            break;
-        }
-    }
-
-    // Init temperature sensor
-    sensors.begin();
-    sensors.setWaitForConversion(false);
-    if (!sensors.getAddress(sensors_addr, 0)) {
-        Serial.println("device was not found");
-    }
-
-    // monitor temperature every 1000 ms
-    timer_sensor.every(1000, timer_sensor_cb, &temp);
-
-    Serial.println("Initialized");
-
-
-    btn_minus.initButton(&lcd, 40, 200, 60, 60, WHITE, BLACK, WHITE, "-", 4);
-    btn_minus.drawButton();
-
-    btn_plus.initButton(&lcd, 190, 200, 60, 60, WHITE, BLACK, WHITE, "+", 4);
-    btn_plus.drawButton();
-
-    btn_on.initButton(&lcd, 280, 200, 60, 60, WHITE, BLACK, WHITE, "ON", 3);
-    btn_on.drawButton(true);
-}
-
-void draw_string(uint16_t x, uint16_t y, uint8_t size, uint16_t color, const GFXfont* font, const char* text)
-{
-    y += 29 * size;
-
-    for (uint8_t i = 0; text[i] != 0; i++) {
-        char c = text[i] - font->first;
-
-        GFXglyph *glyph = &font->glyph[c];
-        uint8_t *bitmap = font->bitmap;
-
-        uint16_t bo = pgm_read_word(&glyph->bitmapOffset);
-        uint8_t w = pgm_read_byte(&glyph->width);
-        uint8_t h = pgm_read_byte(&glyph->height);
-        int8_t xo = pgm_read_byte(&glyph->xOffset);
-        int8_t yo = pgm_read_byte(&glyph->yOffset);
-        uint8_t xx, yy, bits = 0, bit = 0;
-        int16_t xo16 = 0, yo16 = 0;
-
-        uint8_t size_x = size;
-        uint8_t size_y = size;
-
-        if (size_x > 1 || size_y > 1) {
-            xo16 = xo;
-            yo16 = yo;
-        }
-
-        for (yy = 0; yy < h; yy++) {
-            for (xx = 0; xx < w; xx++) {
-                if (!(bit++ & 7)) {
-                    bits = pgm_read_byte(&bitmap[bo++]);
-                }
-                if (bits & 0x80) {
-                    if (size_x == 1 && size_y == 1) {
-                        lcd.drawPixel(x + xo + xx, y + yo + yy, color);
-                    } else {
-                        lcd.fillRect(x + (xo16 + xx) * size_x, y + (yo16 + yy) * size_y,
-                                size_x, size_y, color);
-                    }
-                }
-                bits <<= 1;
-            }
-        }
-
-        x += pgm_read_byte(&glyph->xAdvance) * size;
-    }
-}
 
 uint16_t draw_char(uint16_t x, uint16_t y, uint8_t size, uint16_t color, const GFXfont* font, char c)
 {
@@ -297,7 +201,7 @@ void print_temperature(uint16_t temp)
     // convert to string
     char buff[10];
     if (div < 100) {
-        snprintf(buff, 10, "%u,%u", div, mod);
+        snprintf(buff, 10, "%u.%u", div, mod);
     } else {
         snprintf(buff, 10, "%u", div);
     }
@@ -324,7 +228,7 @@ void print_temperature(uint16_t temp)
     for (int i = 0; buff[i] != 0; i++) {
         if (buff[i] != last_temp_str[i]) {
             if (last_temp_str[i] >= ' ') {
-                if (last_temp_str[i] == ',') {
+                if (last_temp_str[i] == '.') {
                     // clear the rest of the line, because , has different width than the rest
                     lcd.fillRect(offset_x, offset_y, 320 - offset_x, pgm_read_byte(&font->yAdvance) * size, BLACK);
                 } else {
@@ -338,9 +242,22 @@ void print_temperature(uint16_t temp)
     }
 }
 
-void print_target() {
-    lcd.fillRect(75, 185, 80, 35, BLACK);
 
+void print_target() {
+    lcd.fillRect(73, 185, 84, 35, BLACK);
+
+    char buff[10];
+
+    snprintf(buff, 10, "%d", target);
+    uint16_t offset = 85;
+    if (target >= 100) {
+        offset = 73;
+    }
+    for (int i = 0; buff[i] != 0; i++) {
+        offset += draw_char(offset, 185, 1, WHITE, &FreeMonoBold24pt7b, buff[i]);
+    }
+
+/*
     if (target < 100) {
         lcd.setCursor(90, 185);
     } else {
@@ -350,8 +267,8 @@ void print_target() {
     lcd.setTextSize(4);
 
     lcd.print(target);
+*/
 }
-
 
 
 void handle_buttons(void) {
@@ -428,7 +345,7 @@ void loop() {
 
     handle_buttons();
 
-
+    // State machine
     switch (state) {
         case ON:
         case HEATING:
@@ -445,21 +362,79 @@ void loop() {
             break;
     }
 
+    // Drive the output signal to the heater
     if (state == HEATING) {
         digitalWrite(HEATING_OUT, HIGH);
     } else {
         digitalWrite(HEATING_OUT, LOW);
     }
 
+    // Update displayed temperature
     if (last_state != state || temp != last_temp) {
         last_temp = temp;
         print_temperature(temp);
     }
 
+    // Update displayed target temperature
     if (target != last_target) {
         last_target = target;
         print_target();
     }
 
     last_state = state;
+}
+
+
+void setup() {
+    pinMode(HEATING_OUT, OUTPUT);
+    digitalWrite(HEATING_OUT, LOW);
+
+    Serial.begin(9600); // open the serial port at 9600 bps:
+
+    last_state = OFF;
+    state = ON;
+
+    // Init TFT
+    uint16_t identifier = lcd.readID();
+    if (identifier == 0x0101) identifier = 0x9341;
+    lcd.begin(identifier);
+    lcd.setRotation(3);
+    lcd.fillScreen(BLACK);
+
+    // Read the target value from EEPROM
+    for (int i = 0; i < EEPROM_MAX_SIZE; i++) {
+        uint8_t value = EEPROM.read(i);
+        /*
+        Serial.print(i);
+        Serial.print(' ');
+        Serial.println(value);
+        */
+        if (value != 255) {
+            target = value;
+        } else {
+            break;
+        }
+    }
+
+    // Init temperature sensor
+    sensors.begin();
+    sensors.setWaitForConversion(false);
+    if (!sensors.getAddress(sensors_addr, 0)) {
+        Serial.println("device was not found");
+    }
+
+    // monitor temperature every 1000 ms
+    timer_sensor.every(1000, timer_sensor_cb, &temp);
+
+    Serial.println("Initialized");
+
+
+    btn_minus.initButton(&lcd, 40, 200, 60, 60, WHITE, BLACK, WHITE, "-", 4);
+    btn_minus.drawButton();
+
+    btn_plus.initButton(&lcd, 190, 200, 60, 60, WHITE, BLACK, WHITE, "+", 4);
+    btn_plus.drawButton();
+
+    btn_on.initButton(&lcd, 280, 200, 60, 60, WHITE, BLACK, WHITE, "ON", 3);
+    btn_on.drawButton(true);
 }
