@@ -17,10 +17,10 @@
 const int XP=6,XM=A2,YP=A1,YM=7; //ID=0x9341
 
 // Temperature hysteresis in degrees
-#define HYSTERESIS 2
+#define HYSTERESIS 0.5
 
 // Output to drive Heater
-#define HEATING_OUT     27
+#define HEATING_OUT     24
 
 // Assign human-readable names to some common 16-bit color values:
 #define BLACK   0x0000
@@ -58,7 +58,7 @@ Adafruit_TFTLCD lcd(LCD_CS, LCD_CD, LCD_WR, LCD_RD, LCD_RESET);
 TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 
 // Data wire is conntec to the Arduino digital pin 23
-#define ONE_WIRE_BUS 23
+#define ONE_WIRE_BUS 28
 
 // Setup a oneWire instance to communicate with any OneWire devices
 OneWire oneWire(ONE_WIRE_BUS);
@@ -103,6 +103,9 @@ bool timer_sensor_cb(void* temp)
     //sensors.requestTemperaturesByAddress(sensors_addr);
     sensors.requestTemperatures();
     *tmp = sensors.getTemp(sensors_addr);
+    // multiply by 9% as the sensor was showing 70 degree while the real temperature was 76
+    uint32_t aaa = (*tmp);
+    *tmp = aaa * 109/100;
     return true; // to repeat the action - false to stop
 }
 
@@ -211,10 +214,10 @@ void print_temperature(uint16_t temp)
     uint16_t color;
     switch (state) {
         case HEATING:
-            color = GREEN;
+            color = RED;
             break;
         case WAITING:
-            color = RED;
+            color = GREEN;
             break;
         default:
             color = WHITE;
@@ -356,7 +359,7 @@ void loop() {
             }
             break;
         case WAITING:
-            if (temp < (target - HYSTERESIS) * 128) {
+            if (temp < target * 128 - HYSTERESIS * 128) {
                 state = HEATING;
             }
             break;
@@ -392,7 +395,7 @@ void setup() {
     Serial.begin(9600); // open the serial port at 9600 bps:
 
     last_state = OFF;
-    state = ON;
+    state = OFF;
 
     // Init TFT
     uint16_t identifier = lcd.readID();
