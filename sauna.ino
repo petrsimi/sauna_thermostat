@@ -439,5 +439,5 @@ void setup() {
     btn_plus.drawButton();
 
     btn_on.initButton(&lcd, 280, 200, 60, 60, WHITE, BLACK, WHITE, "ON", 3);
-    btn_on.drawButton(true);
+    btn_on.drawButton(false);
 }
