@@ -68,6 +68,8 @@ DallasTemperature sensors(&oneWire);
 
 DeviceAddress sensors_addr;
 
+Timer<1, millis> timer_shutdown;
+
 Timer<1, millis> timer_sensor;
 
 Adafruit_GFX_Button btn_plus;
@@ -76,6 +78,7 @@ Adafruit_GFX_Button btn_on;
 
 Timer<1, millis> timer_btn;
 
+const unsigned long shutdown_interval = 3l * 60 * 60 * 1000; // 3 hours in miliseconds
 
 uint16_t temp_out = 0;
 
@@ -107,6 +110,14 @@ bool timer_sensor_cb(void* temp)
     uint32_t aaa = (*tmp);
     *tmp = aaa * 109/100;
     return true; // to repeat the action - false to stop
+}
+
+
+bool timer_shutdown_cb(void*)
+{
+    Serial.println("Timeout expired. Turning off the heating.");
+    state = OFF;
+    return true;
 }
 
 
@@ -331,10 +342,12 @@ void handle_buttons(void) {
             case OFF:
                 btn_on.drawButton(true);
                 state = ON;
+                timer_shutdown.in(shutdown_interval, timer_shutdown_cb, NULL);
                 break;
             default:
                 btn_on.drawButton(false);
                 state = OFF;
+                timer_shutdown.cancel();
                 break;
         }
     }
@@ -345,6 +358,7 @@ void handle_buttons(void) {
 void loop() {
     timer_sensor.tick();
     timer_btn.tick();
+    timer_shutdown.tick();
 
     handle_buttons();
 
