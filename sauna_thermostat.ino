@@ -4,12 +4,17 @@
 #include <SPFD5408_Adafruit_TFTLCD.h> // Hardware-specific library
 #include <SPFD5408_TouchScreen.h>
 
+#include <ESP_AT_Debug.h>
+#include <ESP_AT_Lib.h>
+#include <ESP_AT_Lib_Impl.h>
+
 #include <EEPROM.h>
 
 #include <arduino-timer.h>
 
 #include "gfxfont.h"
 #include "FreeMonoBold24pt7b.h"
+#include "LcdKeyboard.h"
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -39,12 +44,12 @@ const int XP=6,XM=A2,YP=A1,YM=7; //ID=0x9341
 #define LCD_RD A0 // LCD Read goes to Analog 0
 #define LCD_RESET A4 // LCD RESET goes to Analog 4
 
-#define TS_MINX 160
-#define TS_MINY 120
-#define TS_MAXX 920
-#define TS_MAXY 850
+#define TS_MINX 73
+#define TS_MINY 135
+#define TS_MAXX 860
+#define TS_MAXY 900
 
-#define MINPRESSURE 100
+#define MINPRESSURE 200
 #define MAXPRESSURE 1000
 
 #define EEPROM_MAX_SIZE 256
@@ -55,7 +60,7 @@ Adafruit_TFTLCD lcd(LCD_CS, LCD_CD, LCD_WR, LCD_RD, LCD_RESET);
 // For better pressure precision, we need to know the resistance
 // between X+ and X- Use any multimeter to read it
 // For the one we're using, its 300 ohms across the X plate
-TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
+TouchScreen ts = TouchScreen(XP, YP, XM, YM, 320);
 
 // Data wire is conntec to the Arduino digital pin 23
 #define ONE_WIRE_BUS 28
@@ -68,6 +73,11 @@ DallasTemperature sensors(&oneWire);
 
 DeviceAddress sensors_addr;
 
+
+ESP8266 wifi(&Serial1);
+
+Timer<1, millis> timer_wifiState;
+
 Timer<1, millis> timer_shutdown;
 
 Timer<1, millis> timer_sensor;
@@ -75,6 +85,7 @@ Timer<1, millis> timer_sensor;
 Adafruit_GFX_Button btn_plus;
 Adafruit_GFX_Button btn_minus;
 Adafruit_GFX_Button btn_on;
+
 
 Timer<1, millis> timer_btn;
 
@@ -96,6 +107,223 @@ enum {
     HEATING,
     WAITING,
 } state, last_state;
+
+
+const char httpHead1[] = "<html><head><meta http-equiv='refresh' content='10'><title>Sauna</title><style>button {font-size:40pt;width:90pt;height:90pt;margin:10pt;}</style></head><body style='text-align:center'><p style='font-size:160pt;margin:30pt;color:";
+// red/green/black
+const char httpRed[] = "red";
+const char httpGreen[] = "limegreen";
+const char httpBlack[] = "black";
+
+const char httpHead2[] = "'><b>";
+
+const char httpTail1[] = "</b> &#176;C</p><form action='.' method='post'><button type='submit' name='btnMinus'>-</button><span style='font-size:50pt;display:inline-block;width:200pt;'>";
+
+
+const char httpTail2[] = " &#176;C</span><button type='submit' name='btnPlus'>+</button><button type='submit' name='btnOnOff'>";
+
+const char httpOff[] = "OFF";
+const char httpOn[] = "ON";
+
+const char httpTail3[] = "</button></form></body></html>";
+
+
+
+void handleWifi()
+{
+  uint8_t buffer[1024] = {0};
+  uint8_t mux_id;
+
+  // Any HTTP POST/GET request?
+  uint32_t len = wifi.recv(&mux_id, buffer, sizeof(buffer), 100);
+  if (len > 0) {
+
+    Serial.println(wifi.getIPStatus().c_str());
+
+    // Reqeust to Power ON/OFF ?
+    if (memcmp(buffer, "POST", 4) == 0) {
+      if (strstr((char*)buffer, "btnPlus=") != NULL) {
+        Serial.println(F("Plus button was pressed"));
+        target++;
+      } else if (strstr((char*)buffer, "btnMinus=") != NULL) {
+        Serial.println(F("Minus button was pressed"));
+        target--;
+      } else if (strstr((char*)buffer, "btnOnOff") != NULL) {
+        Serial.println(F("ON/OFF button was pressed"));
+        if (state == OFF) {
+          state = ON;          
+        } else {
+          state = OFF;
+        }
+      } else {
+        Serial.println(F("Unknown POST message"));
+      }
+      //Serial.println((char*)buffer);
+    }
+
+    // Display the HTTP web page
+
+    if (!wifi.send(mux_id, httpHead1, sizeof(httpHead1)-1)) {
+      Serial.println(F("ERROR: Failed to send HTTP header"));
+    }
+
+    switch (state) {
+        case HEATING:
+            if (!wifi.send(mux_id, httpRed, sizeof(httpRed)-1)) {
+              Serial.println(F("ERROR: Failed to send HTTP header"));
+            }
+            break;
+        case ON:
+        case WAITING:
+            if (!wifi.send(mux_id, httpGreen, sizeof(httpGreen)-1)) {
+              Serial.println(F("ERROR: Failed to send HTTP header"));
+            }
+            break;
+        default:
+            if (!wifi.send(mux_id, httpBlack, sizeof(httpBlack)-1)) {
+              Serial.println(F("ERROR: Failed to send HTTP header"));
+            }
+            break;
+    }
+
+
+    if (!wifi.send(mux_id, httpHead2, sizeof(httpHead2)-1)) {
+      Serial.println(F("ERROR: Failed to send HTTP header"));
+    }
+
+    // convert raw temperature to fixed point Celsius
+    uint8_t div = temp / 128;
+    uint8_t mod = (temp % 128) * 10 / 128; // we care only about one digit
+ 
+    // convert to string
+    char buff[10];
+    snprintf(buff, 10, "%u.%u", div, mod);
+    String number = String(buff);
+
+    if (!wifi.send(mux_id, number.c_str(), number.length())) {
+      Serial.println(F("ERROR: Failed to send HTTP body"));
+    }
+
+    if (!wifi.send(mux_id, httpTail1, sizeof(httpTail1)-1)) {
+      Serial.println(F("ERROR: Failed to send HTTP tail"));
+    }
+
+    // Requested temperature
+    number = String(target);
+
+    if (!wifi.send(mux_id, number.c_str(), number.length())) {
+      Serial.println(F("ERROR: Failed to send HTTP body"));
+    }
+
+    if (!wifi.send(mux_id, httpTail2, sizeof(httpTail2)-1)) {
+      Serial.println(F("ERROR: Failed to send HTTP tail"));
+    }
+
+
+
+    if (!wifi.send(mux_id, httpOff, sizeof(httpOff)-1)) {
+      Serial.println(F("ERROR: Failed to send HTTP tail"));
+    }
+
+    if (!wifi.send(mux_id, httpTail3, sizeof(httpTail3)-1)) {
+      Serial.println(F("ERROR: Failed to send HTTP tail"));
+    }
+
+    if (!wifi.releaseTCP(mux_id)) {
+      Serial.print(F("ERROR: Failed to release TCP "));
+      Serial.println(mux_id);
+    }
+  }
+}
+
+
+bool pressed_last = false;
+bool pressed_curr = false;
+
+TSPoint handleTouch()
+{
+    digitalWrite(13, HIGH);
+    TSPoint p = ts.getPoint();
+    // swap axis
+    int16_t tmp = p.x;
+    p.x = p.y;
+    p.y = tmp;
+    digitalWrite(13, LOW);
+
+
+    pinMode(XM, OUTPUT);
+    digitalWrite(XM, LOW);
+    pinMode(YP, OUTPUT);
+    digitalWrite(YP, HIGH);
+
+    // backup previous value
+    pressed_last = pressed_curr;
+
+    pressed_curr = false;
+    p.x = map(p.x, TS_MINX, TS_MAXX, 0, lcd.width());
+    p.y = map(p.y, TS_MAXY, TS_MINY, 0, lcd.height());
+    if (p.z > MINPRESSURE && p.z < MAXPRESSURE) {
+/*
+            Serial.print("X = "); Serial.print(p.x);
+            Serial.print("\tY = "); Serial.print(p.y);
+            Serial.print("\tPressure = "); Serial.println(p.z);
+*/
+        pressed_curr = true;
+    }
+
+    p.z = pressed_last && pressed_curr;
+
+    return p;
+}
+
+
+// Display the WiFi status
+bool timer_wifiState_cb(void*)
+{
+    lcd.fillRect(10, 135, 300, 7, BLACK);
+    lcd.setCursor(10, 135);
+    lcd.setTextSize(1);
+    lcd.setTextColor(BLUE);
+    lcd.print("WiFi: ");
+
+    int start, end;
+    
+    String ssid = wifi.getNowConecAp();
+    start = ssid.indexOf("+CWJAP:");
+    if (start < 0) {
+        goto err;
+    }          
+    start += 8;
+    end = ssid.indexOf('"', start);
+    if (end < 0) {
+        goto err;
+    }
+    // display SSID
+    lcd.print(ssid.substring(start, end));
+    // display rssi
+    lcd.print(" (");
+    start = ssid.lastIndexOf(',') + 1;
+    end = ssid.indexOf('\r', start);
+    lcd.print(ssid.substring(start, end));
+    lcd.print("dBm) ");
+
+    String ip = wifi.getStationIp();
+    start = ip.indexOf("ip:");
+    if (start >= 0) {
+        start += 4;
+        end = ip.indexOf('"', start);
+        if (end >= 0) {
+            lcd.print(ip.substring(start, end));
+        }
+    }            
+
+    return true; // to repeat the action - false to stop
+
+err:
+    lcd.print("not connected");
+    return true;
+}
+
 
 
 // Read out current temperature
@@ -286,24 +514,9 @@ void print_target() {
 
 
 void handle_buttons(void) {
-    digitalWrite(13, HIGH);
-    TSPoint p = ts.getPoint();
-    digitalWrite(13, LOW);
+    TSPoint p = handleTouch();
 
-    pinMode(XM, OUTPUT);
-    digitalWrite(XM, LOW);
-    pinMode(YP, OUTPUT);
-    digitalWrite(YP, HIGH);
-
-
-    if (p.z > MINPRESSURE && p.z < MAXPRESSURE) {
-        p.x = map(p.x, TS_MINX, TS_MAXX, 0, lcd.width());
-        p.y = map(p.y, TS_MINY, TS_MAXY, 0, lcd.height());
-
-        Serial.print("X = "); Serial.print(p.x);
-        Serial.print("\tY = "); Serial.print(p.y);
-        Serial.print("\tPressure = "); Serial.println(p.z);
-
+    if (p.z != 0) {
         if (btn_plus.contains(p.x, p.y)) {
             btn_plus.press(true);
             timer_btn.cancel();
@@ -359,8 +572,11 @@ void loop() {
     timer_sensor.tick();
     timer_btn.tick();
     timer_shutdown.tick();
-
+    timer_wifiState.tick();
     handle_buttons();
+    handleWifi();
+
+
 
     // State machine
     switch (state) {
@@ -402,11 +618,13 @@ void loop() {
 }
 
 
+
 void setup() {
     pinMode(HEATING_OUT, OUTPUT);
     digitalWrite(HEATING_OUT, LOW);
 
     Serial.begin(9600); // open the serial port at 9600 bps:
+    Serial1.begin(115200);
 
     last_state = OFF;
     state = OFF;
@@ -417,6 +635,26 @@ void setup() {
     lcd.begin(identifier);
     lcd.setRotation(3);
     lcd.fillScreen(BLACK);
+    lcd.setTextColor(WHITE);
+    lcd.println(F("Booting..."));
+
+
+/*
+    LcdKeyboard keyboard(lcd);
+    keyboard.draw();
+
+
+
+    while(1) {
+
+
+        TSPoint p = handleTouch();
+
+        keyboard.handlePress(p.x, p.y, p.z);
+
+
+    }
+*/
 
     // Read the target value from EEPROM
     for (int i = 0; i < EEPROM_MAX_SIZE; i++) {
@@ -437,13 +675,66 @@ void setup() {
     sensors.begin();
     sensors.setWaitForConversion(false);
     if (!sensors.getAddress(sensors_addr, 0)) {
-        Serial.println("device was not found");
+        Serial.println(F("ERROR: temperature sensor was not found"));
+        lcd.setTextColor(RED);
+        lcd.println(F("ERROR: Teplotni cidlo nebylo nenalezeno."));
+        lcd.setTextColor(WHITE);
     }
 
     // monitor temperature every 1000 ms
     timer_sensor.every(1000, timer_sensor_cb, &temp);
 
+    // Test the comminication with WiFi module
+    if (!wifi.kick()) {
+        Serial.println(F("ERROR: WiFi module was not detected"));
+        lcd.setTextColor(RED);
+        lcd.println(F("ERROR: WiFi modul nebyl detekovan."));
+        lcd.setTextColor(WHITE);
+    }
+
+    Serial.println(wifi.getVersion().c_str());
+
+    if (!wifi.setOprToStation()) {
+      Serial.println(F("ERROR: Failed to set WiFi Station mode"));
+    }
+
+    if (!wifi.enableMUX()) {
+      Serial.println(F("ERROR: enableMUX failed"));
+    }
+
+    if (!wifi.joinAP("simi", "KockaLezeDirouPesOknem")) {
+      Serial.println("Failed to connect to the AP.");
+    }
+
+    Serial.println(F("Network settings:"));
+    String ip = wifi.getStationIp();
+    Serial.println(ip.c_str());
+
+    if (!wifi.startTCPServer(80)) {
+      Serial.println(F("ERROR: Failed to start TCP server"));
+    }
+
+    if (!wifi.setTCPServerTimeout(10)) {
+      Serial.println(F("ERROR: Failed to set TCP server timeout"));
+    }
+
+
+/*
+  while (1) {
+    if (Serial.available()) {
+      Serial1.write(Serial.read());
+    }  
+    if (Serial1.available()) {
+      Serial.write(Serial1.read());    
+    }
+  }
+*/
+
+
+
     Serial.println("Initialized");
+
+    lcd.fillScreen(BLACK);
 
 
     btn_minus.initButton(&lcd, 40, 200, 60, 60, WHITE, BLACK, WHITE, "-", 4);
@@ -454,4 +745,6 @@ void setup() {
 
     btn_on.initButton(&lcd, 280, 200, 60, 60, WHITE, BLACK, WHITE, "ON", 3);
     btn_on.drawButton(false);
+
+    timer_wifiState.every(10000, timer_wifiState_cb);
 }
