@@ -22,4 +22,6 @@ class WifiWrap {
     private:
         ESP8266* wifi;
 
+        bool available;
+
 };

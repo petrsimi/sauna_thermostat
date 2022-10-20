@@ -15,27 +15,23 @@
 #define GRAY50  0x7BEF
 
 
-
-static const char httpHead1[] = "<html><head><meta http-equiv='refresh' content='10'><title>Sauna</title><style>button {font-size:40pt;width:90pt;height:90pt;margin:10pt;}</style></head><body style='text-align:center'><p style='font-size:160pt;margin:30pt;color:";
-// red/green/black
-static const char httpRed[] = "red";
-static const char httpGreen[] = "limegreen";
-static const char httpBlack[] = "black";
-
-static const char httpHead2[] = "'><b>";
-
-static const char httpTail1[] = "</b> &#176;C</p><form action='.' method='post'><button type='submit' name='btnMinus'>-</button><span style='font-size:50pt;display:inline-block;width:200pt;'>";
+//<meta http-equiv='refresh' content='10'>\
 
 
-static const char httpTail2[] = " &#176;C</span><button type='submit' name='btnPlus'>+</button><button type='submit' name='btnOnOff'>";
-
-static const char httpOff[] = "OFF";
-static const char httpOn[] = "ON";
-
-static const char httpTail3[] = "</button></form></body></html>";
-
-
-
+static const char httpContent[] = "<html>\
+<head>\
+<title>Sauna</title>\
+<style>button {font-size:40pt;width:90pt;height:90pt;margin:10pt;}</style>\
+</head>\
+<body style='text-align:center'>\
+<p style='font-size:160pt;margin:30pt;color:%s'><b>%u.%u</b> &#176;C</p>\
+<form action='.' method='post'>\
+<button type='submit' name='btnMinus'>-</button>\
+<span style='font-size:50pt;display:inline-block;width:200pt;'>%u &#176;C</span>\
+<button type='submit' name='btnPlus'>+</button><button type='submit' name='btnOnOff'>%s</button>\
+</form>\
+</body>\
+</html>";
 
 
 WifiWrap::WifiWrap(Stream* stream)
@@ -46,13 +42,17 @@ WifiWrap::WifiWrap(Stream* stream)
 
 bool WifiWrap::isAlive()
 {
-    return wifi->kick();
+    available = wifi->kick();
+    return available;
 }
 
 
 bool WifiWrap::startHttpSrv()
 {
-    Serial.println(wifi->getVersion().c_str());
+    // Is the WiFi modul connected?
+    if (!available) {
+        return false;
+    }
 
     if (!wifi->setOprToStation()) {
         Serial.println(F("ERROR: Failed to set WiFi Station mode"));
@@ -112,6 +112,9 @@ bool WifiWrap::displayWifiStatus(Adafruit_TFTLCD& lcd)
     lcd.setCursor(10, 135);
     lcd.setTextSize(1);
     lcd.setTextColor(BLUE);
+
+    if (!available) return false;
+
     lcd.print("WiFi: ");
 
     int start, end;
@@ -154,24 +157,24 @@ err:
 
 bool WifiWrap::handleHttpReq(uint8_t& target, uint16_t& temp, state_t& state)
 {
-  uint8_t buffer[1024] = {0};
+  char buffer[1024] = {0};
   uint8_t mux_id;
 
   // Any HTTP POST/GET request?
-  uint32_t len = wifi->recv(&mux_id, buffer, sizeof(buffer), 100);
+  uint32_t len = wifi->recv(&mux_id, buffer, sizeof(buffer) - 1, 200);
   if (len > 0) {
 
     Serial.println(wifi->getIPStatus().c_str());
 
     // Reqeust to Power ON/OFF ?
     if (memcmp(buffer, "POST", 4) == 0) {
-      if (strstr((char*)buffer, "btnPlus=") != NULL) {
+      if (strstr(buffer, "btnPlus=") != NULL) {
         Serial.println(F("Plus button was pressed"));
         target++;
-      } else if (strstr((char*)buffer, "btnMinus=") != NULL) {
+      } else if (strstr(buffer, "btnMinus=") != NULL) {
         Serial.println(F("Minus button was pressed"));
         target--;
-      } else if (strstr((char*)buffer, "btnOnOff") != NULL) {
+      } else if (strstr(buffer, "btnOnOff") != NULL) {
         Serial.println(F("ON/OFF button was pressed"));
         if (state == OFF) {
           state = ON;          
@@ -184,81 +187,27 @@ bool WifiWrap::handleHttpReq(uint8_t& target, uint16_t& temp, state_t& state)
       //Serial.println((char*)buffer);
     }
 
-    // Display the HTTP web page
-
-    if (!wifi->send(mux_id, httpHead1, sizeof(httpHead1)-1)) {
-      Serial.println(F("ERROR: Failed to send HTTP header"));
-    }
-
-    switch (state) {
-        case HEATING:
-            if (!wifi->send(mux_id, httpRed, sizeof(httpRed)-1)) {
-              Serial.println(F("ERROR: Failed to send HTTP header"));
-            }
-            break;
-        case ON:
-        case WAITING:
-            if (!wifi->send(mux_id, httpGreen, sizeof(httpGreen)-1)) {
-              Serial.println(F("ERROR: Failed to send HTTP header"));
-            }
-            break;
-        default:
-            if (!wifi->send(mux_id, httpBlack, sizeof(httpBlack)-1)) {
-              Serial.println(F("ERROR: Failed to send HTTP header"));
-            }
-            break;
-    }
-
-
-    if (!wifi->send(mux_id, httpHead2, sizeof(httpHead2)-1)) {
-      Serial.println(F("ERROR: Failed to send HTTP header"));
-    }
-
     // convert raw temperature to fixed point Celsius
     uint8_t div = temp / 128;
     uint8_t mod = (temp % 128) * 10 / 128; // we care only about one digit
- 
-    // convert to string
-    char buff[10];
-    snprintf(buff, 10, "%u.%u", div, mod);
-    String number = String(buff);
 
-    if (!wifi->send(mux_id, number.c_str(), number.length())) {
-      Serial.println(F("ERROR: Failed to send HTTP body"));
-    }
 
-    if (!wifi->send(mux_id, httpTail1, sizeof(httpTail1)-1)) {
-      Serial.println(F("ERROR: Failed to send HTTP tail"));
-    }
-
-    // Requested temperature
-    number = String(target);
-
-    if (!wifi->send(mux_id, number.c_str(), number.length())) {
-      Serial.println(F("ERROR: Failed to send HTTP body"));
-    }
-
-    if (!wifi->send(mux_id, httpTail2, sizeof(httpTail2)-1)) {
-      Serial.println(F("ERROR: Failed to send HTTP tail"));
-    }
-
-    if (state == OFF) {
-        if (!wifi->send(mux_id, httpOn, sizeof(httpOn)-1)) {
-          Serial.println(F("ERROR: Failed to send HTTP tail"));
-        }
-    } else {
-        if (!wifi->send(mux_id, httpOff, sizeof(httpOff)-1)) {
-          Serial.println(F("ERROR: Failed to send HTTP tail"));
-        }
-    }
-
-    if (!wifi->send(mux_id, httpTail3, sizeof(httpTail3)-1)) {
-      Serial.println(F("ERROR: Failed to send HTTP tail"));
+    // Send the HTTP web page
+    int size = snprintf(buffer, 1024, httpContent,
+        (state == HEATING) ? "red" : (state == OFF ? "black" : "limegreen"),
+        div,
+        mod,
+        target,
+        state == OFF ? "ON" : "OFF"
+    );
+        
+    if (!wifi->send(mux_id, buffer, size)) {
+        Serial.println(F("ERROR: Failed to send HTTP content"));
     }
 
     if (!wifi->releaseTCP(mux_id)) {
-      Serial.print(F("ERROR: Failed to release TCP "));
-      Serial.println(mux_id);
+        Serial.print(F("ERROR: Failed to release TCP "));
+        Serial.println(mux_id);
     }
   }
 }

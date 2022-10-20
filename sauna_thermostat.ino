@@ -1,5 +1,9 @@
 #include <string.h>
 
+#include <avr/wdt.h>
+
+
+
 #include <SPFD5408_Adafruit_GFX.h> // Core graphics library
 #include <SPFD5408_Adafruit_TFTLCD.h> // Hardware-specific library
 #include <SPFD5408_TouchScreen.h>
@@ -176,7 +180,7 @@ bool timer_shutdown_cb(void*)
 {
     Serial.println("Timeout expired. Turning off the heating.");
     state = OFF;
-    return true;
+    return false;
 }
 
 
@@ -374,12 +378,10 @@ void handle_buttons(void) {
             case OFF:
                 btn_on.drawButton(true);
                 state = ON;
-                timer_shutdown.in(shutdown_interval, timer_shutdown_cb, NULL);
                 break;
             default:
                 btn_on.drawButton(false);
                 state = OFF;
-                timer_shutdown.cancel();
                 break;
         }
     }
@@ -388,6 +390,9 @@ void handle_buttons(void) {
 
 
 void loop() {
+    wdt_reset();
+
+
     timer_sensor.tick();
     timer_btn.tick();
     timer_shutdown.tick();
@@ -400,6 +405,9 @@ void loop() {
     // State machine
     switch (state) {
         case ON:
+            timer_shutdown.in(shutdown_interval, timer_shutdown_cb, NULL);
+            btn_on.drawButton(true);
+            // PASS THROUGH
         case HEATING:
             if (temp >= target * 128) {
                 state = WAITING;
@@ -410,6 +418,12 @@ void loop() {
         case WAITING:
             if (temp < target * 128 - HYSTERESIS * 128) {
                 state = HEATING;
+            }
+            break;
+        case OFF:
+            timer_shutdown.cancel();
+            if (last_state != state) {
+                btn_on.drawButton(false);
             }
             break;
     }
@@ -439,6 +453,10 @@ void loop() {
 
 
 void setup() {
+    // Confirm watchdog  
+    wdt_enable(WDTO_8S);
+
+
     pinMode(HEATING_OUT, OUTPUT);
     digitalWrite(HEATING_OUT, LOW);
 
