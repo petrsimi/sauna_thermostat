@@ -20,6 +20,7 @@
 
 static const char httpContent[] = "<html>\
 <head>\
+<meta http-equiv='refresh' content='10'>\
 <title>Sauna</title>\
 <style>button {font-size:40pt;width:90pt;height:90pt;margin:10pt;}</style>\
 </head>\
@@ -121,12 +122,14 @@ bool WifiWrap::displayWifiStatus(Adafruit_TFTLCD& lcd)
     String ssid = wifi->getNowConecAp();
     start = ssid.indexOf("+CWJAP:");
     if (start < 0) {
-        goto err;
+        lcd.print(F("not connected"));
+        return false;
     }          
     start += 8;
     end = ssid.indexOf('"', start);
     if (end < 0) {
-        goto err;
+        lcd.print(F("not connected"));
+        return false;
     }
     // display SSID
     lcd.print(ssid.substring(start, end));
@@ -147,22 +150,18 @@ bool WifiWrap::displayWifiStatus(Adafruit_TFTLCD& lcd)
         }
     }            
 
-    return true; // to repeat the action - false to stop
-
-err:
-    lcd.print("not connected");
-    return false;
+    return true;
 }
 
 
 bool WifiWrap::handleHttpReq(uint8_t& target, uint16_t& temp, state_t& state)
 {
-  char buffer[1024] = {0};
-  uint8_t mux_id;
+    char buffer[1024] = {0};
+    uint8_t mux_id;
 
-  // Any HTTP POST/GET request?
-  uint32_t len = wifi->recv(&mux_id, buffer, sizeof(buffer) - 1, 200);
-  if (len > 0) {
+    // Any HTTP POST/GET request?
+    uint32_t len = wifi->recv(&mux_id, buffer, sizeof(buffer) - 1, 100);
+    if (len > 0) {
 
     Serial.println(wifi->getIPStatus().c_str());
 
