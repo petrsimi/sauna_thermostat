@@ -22,6 +22,7 @@
 #include "sauna.h"
 #include "LcdKeyboard.h"
 #include "WifiWrap.h"
+#include "ScreenStatus.h"
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -88,12 +89,6 @@ Timer<1, millis> timer_shutdown;
 
 Timer<1, millis> timer_sensor;
 
-Adafruit_GFX_Button btn_plus;
-Adafruit_GFX_Button btn_minus;
-Adafruit_GFX_Button btn_on;
-
-
-Timer<1, millis> timer_btn;
 
 const unsigned long shutdown_interval = 3l * 60 * 60 * 1000; // 3 hours in miliseconds
 
@@ -110,6 +105,7 @@ char last_temp_str[10] = {0};
 state_t state, last_state;
 
 
+ScreenStatus screenStatus(lcd, target, state);
 
 
 
@@ -180,45 +176,6 @@ bool timer_shutdown_cb(void*)
 {
     Serial.println("Timeout expired. Turning off the heating.");
     state = OFF;
-    return false;
-}
-
-
-// Store the thetarget temperature to the EEPROM
-bool timer_btm_cb(void* temp)
-{
-    uint8_t* tmp = (uint8_t*)temp;
-    bool found = false;
-    int addr = 0;
-
-    // try to find the free space
-    for (addr = 0; addr < EEPROM_MAX_SIZE; addr++) {
-        uint8_t data = EEPROM.read(addr);
-        if (data == EEPROM_FREE_VALUE) {
-            found = true;
-            break;
-        }
-    }
-
-    // was the free space found?
-    if (found == false) {
-        Serial.println("EEPROM is full. We need to clear it");
-        for (addr = 0; addr < EEPROM_MAX_SIZE; addr++) {
-            EEPROM.write(addr, EEPROM_FREE_VALUE);
-        }
-        addr = 0;
-    }
-
-    // store the settings
-    EEPROM.write(addr, *tmp);
-
-    Serial.print("Save to EEPROM addr: ");
-    Serial.print(addr);
-    Serial.print(" value: ");
-    Serial.println(*tmp);
-
-    Serial.println(*tmp);
-
     return false;
 }
 
@@ -336,68 +293,16 @@ void print_target() {
 }
 
 
-void handle_buttons(void) {
-    TSPoint p = handleTouch();
-
-    if (p.z != 0) {
-        if (btn_plus.contains(p.x, p.y)) {
-            btn_plus.press(true);
-            timer_btn.cancel();
-            timer_btn.in(5000, timer_btm_cb, &target);
-        }
-        if (btn_minus.contains(p.x, p.y)) {
-            btn_minus.press(true);
-            timer_btn.cancel();
-            timer_btn.in(5000, timer_btm_cb, &target);
-        }
-        if (btn_on.contains(p.x, p.y)) {
-            btn_on.press(true);
-        }
-    } else {
-        btn_plus.press(false);
-        btn_minus.press(false);
-        btn_on.press(false);
-    }
-
-    if (btn_plus.justPressed()) {
-        target++;
-        btn_plus.drawButton(true);
-    } else if (btn_plus.justReleased()) {
-        btn_plus.drawButton(false);
-    }
-
-    if (btn_minus.justPressed()) {
-        target--;
-        btn_minus.drawButton(true);
-    } else if (btn_minus.justReleased()) {
-        btn_minus.drawButton(false);
-    }
-
-    if (btn_on.justPressed()) {
-        switch (state) {
-            case OFF:
-                btn_on.drawButton(true);
-                state = ON;
-                break;
-            default:
-                btn_on.drawButton(false);
-                state = OFF;
-                break;
-        }
-    }
-
-}
-
-
 void loop() {
     wdt_reset();
 
 
     timer_sensor.tick();
-    timer_btn.tick();
+    screenStatus.tick();
     timer_shutdown.tick();
-    timer_wifiState.tick();
-    handle_buttons();
+    //timer_wifiState.tick();
+    TSPoint p = handleTouch();
+    screenStatus.handle_buttons(p);
     wifi.handleHttpReq(target, temp, state);
 
 
@@ -406,7 +311,7 @@ void loop() {
     switch (state) {
         case ON:
             timer_shutdown.in(shutdown_interval, timer_shutdown_cb, NULL);
-            btn_on.drawButton(true);
+            screenStatus.displayOnOffBtn(true);
             // PASS THROUGH
         case HEATING:
             if (temp >= target * 128) {
@@ -423,7 +328,7 @@ void loop() {
         case OFF:
             timer_shutdown.cancel();
             if (last_state != state) {
-                btn_on.drawButton(false);
+                screenStatus.displayOnOffBtn(false);
             }
             break;
     }
@@ -460,7 +365,7 @@ void setup() {
     pinMode(HEATING_OUT, OUTPUT);
     digitalWrite(HEATING_OUT, LOW);
 
-    Serial.begin(9600); // open the serial port at 9600 bps:
+    Serial.begin(9600); // open the serial port at 9600 bps
     Serial1.begin(115200);
     Serial1.setTimeout(1000);
     last_state = OFF;
@@ -536,15 +441,5 @@ void setup() {
 
     Serial.println("Initialized");
 
-    lcd.fillScreen(BLACK);
-
-    btn_minus.initButton(&lcd, 40, 200, 60, 60, WHITE, BLACK, WHITE, "-", 4);
-    btn_minus.drawButton();
-
-    btn_plus.initButton(&lcd, 190, 200, 60, 60, WHITE, BLACK, WHITE, "+", 4);
-    btn_plus.drawButton();
-
-    btn_on.initButton(&lcd, 280, 200, 60, 60, WHITE, BLACK, WHITE, "ON", 3);
-    btn_on.drawButton(false);
-
+    screenStatus.display();
 }
