@@ -1,5 +1,6 @@
 #include "ScreenStatus.h"
 #include <EEPROM.h>
+#include "FreeMonoBold24pt7b.h"
 
 
 // Assign human-readable names to some common 16-bit color values:
@@ -55,10 +56,11 @@ static bool timer_btm_cb(void* temp)
 }
 
 
-ScreenStatus::ScreenStatus(Adafruit_TFTLCD& lcd, uint8_t& target, state_t& state) :
-   lcd(lcd), target(target), state(state)
+ScreenStatus::ScreenStatus(Adafruit_TFTLCD& lcd, uint16_t& temp, uint8_t& target, state_t& state) :
+   lcd(lcd), temp(temp), target(target), state(state)
 {
-  
+    target_last = 0;
+    memset(last_temp_str, 0, sizeof(last_temp_str));
 }
 
 void ScreenStatus::display()
@@ -79,19 +81,144 @@ void ScreenStatus::display()
 }
 
 
-void ScreenStatus::displayOnOffBtn(bool pressed)
+uint16_t ScreenStatus::draw_char(uint16_t x, uint16_t y, uint8_t size, uint16_t color, const GFXfont* font, char c)
 {
-    btn_on.drawButton(pressed);
+    y += 29 * size;
+
+    c -= font->first;
+
+    GFXglyph *glyph = &font->glyph[c];
+    uint8_t *bitmap = font->bitmap;
+
+    uint16_t bo = pgm_read_word(&glyph->bitmapOffset);
+    uint8_t w = pgm_read_byte(&glyph->width);
+    uint8_t h = pgm_read_byte(&glyph->height);
+    int8_t xo = pgm_read_byte(&glyph->xOffset);
+    int8_t yo = pgm_read_byte(&glyph->yOffset);
+    uint8_t xx, yy, bits = 0, bit = 0;
+    int16_t xo16 = 0, yo16 = 0;
+
+    uint8_t size_x = size;
+    uint8_t size_y = size;
+
+    if (size_x > 1 || size_y > 1) {
+        xo16 = xo;
+        yo16 = yo;
+    }
+
+    for (yy = 0; yy < h; yy++) {
+        for (xx = 0; xx < w; xx++) {
+            if (!(bit++ & 7)) {
+                bits = pgm_read_byte(&bitmap[bo++]);
+            }
+            if (bits & 0x80) {
+                if (size_x == 1 && size_y == 1) {
+                    lcd.drawPixel(x + xo + xx, y + yo + yy, color);
+                } else {
+                    lcd.fillRect(x + (xo16 + xx) * size_x, y + (yo16 + yy) * size_y,
+                            size_x, size_y, color);
+                }
+            }
+            bits <<= 1;
+        }
+    }
+
+    return pgm_read_byte(&glyph->xAdvance) * size;
 }
+
+
+void ScreenStatus::print_temperature(uint16_t temp)
+{
+    // convert raw temperature to fixed point Celsius
+    uint8_t div = temp / 128;
+    uint8_t mod = (temp % 128) * 10 / 128; // we care only about one digit
+
+    // convert to string
+    char buff[10];
+    if (div < 100) {
+        snprintf(buff, 10, "%u.%u", div, mod);
+    } else {
+        snprintf(buff, 10, "%u", div);
+    }
+    Serial.print("Temperature: ");
+    Serial.println(buff);
+
+    uint16_t color;
+    switch (state) {
+        case HEATING:
+            color = RED;
+            break;
+        case WAITING:
+            color = GREEN;
+            break;
+        default:
+            color = WHITE;
+            break;
+    }
+
+    uint16_t offset_x = 20;
+    uint16_t offset_y = 10;
+    uint8_t size = 3;
+    const GFXfont* font = &FreeMonoBold24pt7b;
+    for (int i = 0; buff[i] != 0; i++) {
+        if (buff[i] != last_temp_str[i]) {
+            if (last_temp_str[i] >= ' ') {
+                if (last_temp_str[i] == '.') {
+                    // clear the rest of the line, because , has different width than the rest
+                    lcd.fillRect(offset_x, offset_y, 320 - offset_x, pgm_read_byte(&font->yAdvance) * size, BLACK);
+                } else {
+                    lcd.fillRect(offset_x, offset_y, pgm_read_byte(&font->glyph[last_temp_str[i] - font->first].xAdvance) * size, pgm_read_byte(&font->yAdvance) * size, BLACK);
+                }
+            }
+            last_temp_str[i] = buff[i];
+        }
+        offset_x += draw_char(offset_x, offset_y, size, color, font, buff[i]);
+    }
+}
+
+
+void ScreenStatus::print_target() {
+    lcd.fillRect(73, 195, 84, 35, BLACK);
+
+    char buff[10];
+
+    snprintf(buff, 10, "%d", target);
+    uint16_t offset = 85;
+    if (target >= 100) {
+        offset = 73;
+    }
+    for (int i = 0; buff[i] != 0; i++) {
+        offset += draw_char(offset, 195, 1, WHITE, &FreeMonoBold24pt7b, buff[i]);
+    }
+}
+
 
 void ScreenStatus::tick()
 {
     timer_btn.tick();
+
+    // Refresh ON/OFF button
+    if (state != state_last && (state == OFF || state_last == OFF)) {
+        btn_on.drawButton(state != OFF);
+    }
+
+    // Update displayed target temperature
+    if (target != target_last) {
+        target_last = target;
+        print_target();
+    }
+
+    // Update displayed temperature
+    if (state_last != state || temp != temp_last) {
+        temp_last = temp;
+        state_last = state;
+        print_temperature(temp);
+    }
+
 }
 
-void ScreenStatus::handle_buttons(TSPoint& p) {
-
-
+void ScreenStatus::handle_buttons(TSPoint& p)
+{
     if (p.z != 0) {
         if (btn_plus.contains(p.x, p.y)) {
             btn_plus.press(true);
@@ -133,11 +260,11 @@ void ScreenStatus::handle_buttons(TSPoint& p) {
     if (btn_on.justPressed()) {
         switch (state) {
             case OFF:
-                btn_on.drawButton(true);
+//                btn_on.drawButton(true);
                 state = ON;
                 break;
             default:
-                btn_on.drawButton(false);
+//                btn_on.drawButton(false);
                 state = OFF;
                 break;
         }

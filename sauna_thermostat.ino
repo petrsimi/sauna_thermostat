@@ -83,8 +83,6 @@ DeviceAddress sensors_addr;
 
 WifiWrap wifi(&Serial1);
 
-Timer<1, millis> timer_wifiState;
-
 Timer<1, millis> timer_shutdown;
 
 Timer<1, millis> timer_sensor;
@@ -95,17 +93,14 @@ const unsigned long shutdown_interval = 3l * 60 * 60 * 1000; // 3 hours in milis
 uint16_t temp_out = 0;
 
 uint16_t temp = 0; ///< current temperature
-uint16_t last_temp = 0; ///<last temperature
 
 uint8_t target = 30;
-uint8_t last_target = 0;
-
-char last_temp_str[10] = {0};
-
-state_t state, last_state;
 
 
-ScreenStatus screenStatus(lcd, target, state);
+state_t state;
+
+
+ScreenStatus screenStatus(lcd, temp, target, state);
 
 
 
@@ -150,13 +145,6 @@ TSPoint handleTouch()
 }
 
 
-// Display the WiFi status
-bool timer_wifiState_cb(void*)
-{
-    wifi.displayWifiStatus(lcd);
-    return true;
-}
-
 // Read out current temperature
 bool timer_sensor_cb(void* temp)
 {
@@ -180,138 +168,22 @@ bool timer_shutdown_cb(void*)
 }
 
 
-uint16_t draw_char(uint16_t x, uint16_t y, uint8_t size, uint16_t color, const GFXfont* font, char c)
-{
-    y += 29 * size;
-
-    c -= font->first;
-
-    GFXglyph *glyph = &font->glyph[c];
-    uint8_t *bitmap = font->bitmap;
-
-    uint16_t bo = pgm_read_word(&glyph->bitmapOffset);
-    uint8_t w = pgm_read_byte(&glyph->width);
-    uint8_t h = pgm_read_byte(&glyph->height);
-    int8_t xo = pgm_read_byte(&glyph->xOffset);
-    int8_t yo = pgm_read_byte(&glyph->yOffset);
-    uint8_t xx, yy, bits = 0, bit = 0;
-    int16_t xo16 = 0, yo16 = 0;
-
-    uint8_t size_x = size;
-    uint8_t size_y = size;
-
-    if (size_x > 1 || size_y > 1) {
-        xo16 = xo;
-        yo16 = yo;
-    }
-
-    for (yy = 0; yy < h; yy++) {
-        for (xx = 0; xx < w; xx++) {
-            if (!(bit++ & 7)) {
-                bits = pgm_read_byte(&bitmap[bo++]);
-            }
-            if (bits & 0x80) {
-                if (size_x == 1 && size_y == 1) {
-                    lcd.drawPixel(x + xo + xx, y + yo + yy, color);
-                } else {
-                    lcd.fillRect(x + (xo16 + xx) * size_x, y + (yo16 + yy) * size_y,
-                            size_x, size_y, color);
-                }
-            }
-            bits <<= 1;
-        }
-    }
-
-    return pgm_read_byte(&glyph->xAdvance) * size;
-}
-
-
-void print_temperature(uint16_t temp)
-{
-    // convert raw temperature to fixed point Celsius
-    uint8_t div = temp / 128;
-    uint8_t mod = (temp % 128) * 10 / 128; // we care only about one digit
- 
-    // convert to string
-    char buff[10];
-    if (div < 100) {
-        snprintf(buff, 10, "%u.%u", div, mod);
-    } else {
-        snprintf(buff, 10, "%u", div);
-    }
-    Serial.print("Temperature: ");
-    Serial.println(buff);
-
-    uint16_t color;
-    switch (state) {
-        case HEATING:
-            color = RED;
-            break;
-        case WAITING:
-            color = GREEN;
-            break;
-        default:
-            color = WHITE;
-            break;
-    }
-
-    uint16_t offset_x = 20;
-    uint16_t offset_y = 10;
-    uint8_t size = 3;
-    const GFXfont* font = &FreeMonoBold24pt7b;
-    for (int i = 0; buff[i] != 0; i++) {
-        if (buff[i] != last_temp_str[i]) {
-            if (last_temp_str[i] >= ' ') {
-                if (last_temp_str[i] == '.') {
-                    // clear the rest of the line, because , has different width than the rest
-                    lcd.fillRect(offset_x, offset_y, 320 - offset_x, pgm_read_byte(&font->yAdvance) * size, BLACK);
-                } else {
-                    lcd.fillRect(offset_x, offset_y, pgm_read_byte(&font->glyph[last_temp_str[i] - font->first].xAdvance) * size, pgm_read_byte(&font->yAdvance) * size, BLACK);
-                }
-            }
-            last_temp_str[i] = buff[i];
-            
-        }
-        offset_x += draw_char(offset_x, offset_y, size, color, font, buff[i]);
-    }
-}
-
-
-void print_target() {
-    lcd.fillRect(73, 185, 84, 35, BLACK);
-
-    char buff[10];
-
-    snprintf(buff, 10, "%d", target);
-    uint16_t offset = 85;
-    if (target >= 100) {
-        offset = 73;
-    }
-    for (int i = 0; buff[i] != 0; i++) {
-        offset += draw_char(offset, 185, 1, WHITE, &FreeMonoBold24pt7b, buff[i]);
-    }
-}
 
 
 void loop() {
     wdt_reset();
 
-
     timer_sensor.tick();
-    screenStatus.tick();
     timer_shutdown.tick();
-    //timer_wifiState.tick();
-    TSPoint p = handleTouch();
-    screenStatus.handle_buttons(p);
     wifi.handleHttpReq(target, temp, state);
 
-
+    TSPoint p = handleTouch();
+    screenStatus.handle_buttons(p);
 
     // State machine
     switch (state) {
         case ON:
             timer_shutdown.in(shutdown_interval, timer_shutdown_cb, NULL);
-            screenStatus.displayOnOffBtn(true);
             // PASS THROUGH
         case HEATING:
             if (temp >= target * 128) {
@@ -327,9 +199,6 @@ void loop() {
             break;
         case OFF:
             timer_shutdown.cancel();
-            if (last_state != state) {
-                screenStatus.displayOnOffBtn(false);
-            }
             break;
     }
 
@@ -340,19 +209,7 @@ void loop() {
         digitalWrite(HEATING_OUT, LOW);
     }
 
-    // Update displayed temperature
-    if (last_state != state || temp != last_temp) {
-        last_temp = temp;
-        print_temperature(temp);
-    }
-
-    // Update displayed target temperature
-    if (target != last_target) {
-        last_target = target;
-        print_target();
-    }
-
-    last_state = state;
+    screenStatus.tick();
 }
 
 
@@ -368,7 +225,6 @@ void setup() {
     Serial.begin(9600); // open the serial port at 9600 bps
     Serial1.begin(115200);
     Serial1.setTimeout(1000);
-    last_state = OFF;
     state = OFF;
 
     // Init TFT
@@ -384,8 +240,6 @@ void setup() {
 /*
     LcdKeyboard keyboard(lcd);
     keyboard.draw();
-
-
 
     while(1) {
 
@@ -436,8 +290,6 @@ void setup() {
 
     // Start HTTP server
     wifi.startHttpSrv();
-    timer_wifiState.every(10000, timer_wifiState_cb);
-
 
     Serial.println("Initialized");
 
