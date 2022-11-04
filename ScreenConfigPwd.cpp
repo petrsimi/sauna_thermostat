@@ -1,4 +1,4 @@
-#include "ScreenConfigSsid.h"
+#include "ScreenConfigPwd.h"
 
 
 // Assign human-readable names to some common 16-bit color values:
@@ -13,55 +13,52 @@
 #define GRAY50  0x7BEF
 
 
-ScreenConfigSsid::ScreenConfigSsid(Adafruit_TFTLCD& lcd, screen_t& screen) :
+ScreenConfigPwd::ScreenConfigPwd(Adafruit_TFTLCD& lcd, screen_t& screen) :
    lcd(lcd), screen(screen), keyboard(lcd)
 {
-    ssid = "";
 }
 
 
-void ScreenConfigSsid::display()
+void ScreenConfigPwd::display()
 {
     lcd.fillScreen(BLACK);
     lcd.setCursor(0, 0);
     lcd.setTextSize(2);
     lcd.setTextColor(CYAN);
 
-    lcd.print("Zadejte nove SSID:");
+    lcd.print("Zadejte nove heslo:");
 
     keyboard.draw();
 }
 
-void ScreenConfigSsid::displaySsid(bool invert)
+void ScreenConfigPwd::displayPwd(bool invert)
 {
     lcd.setTextSize(2);
     lcd.setCursor(0, 20);
     lcd.setTextColor(invert ? BLACK : WHITE);
-    lcd.print(ssid);
+    lcd.print(pwd);
 }
 
-void ScreenConfigSsid::tick()
+void ScreenConfigPwd::tick()
 {
 
 }
 
-void ScreenConfigSsid::handle_buttons(TSPoint& p)
+void ScreenConfigPwd::handle_buttons(TSPoint& p)
 {
     char key = keyboard.handlePress(p.x, p.y, p.z);
 
     if (key == LcdKeyboard::KEY_ESC) {
         screen = SCREEN_CONFIG;
-    } else if (key == LcdKeyboard::KEY_ENTER) {
-        screen = SCREEN_CONFIG_PWD;
     } else if (key == LcdKeyboard::KEY_BACKSPACE) {
         // clear the old text
-        displaySsid(true);
+        displayPwd(true);
         // remove the character
-        ssid.remove(ssid.length()-1);
+        pwd.remove(pwd.length()-1);
         // and display the SSID
-        displaySsid(false);
+        displayPwd(false);
     } else if (key > 0) {
-        ssid += key;
-        displaySsid(false);
+        pwd += key;
+        displayPwd(false);
     }
 }
