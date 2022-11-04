@@ -108,7 +108,7 @@ void LcdKeyboard::draw()
 
 char LcdKeyboard::handlePress(int16_t x, int16_t y, bool pressed)
 {
-    char ret = -1;
+    char ret = 0;
 
     for (int i=0; i<KEYS; i++) {
         // Update "press" status for all keys

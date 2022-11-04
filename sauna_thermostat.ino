@@ -20,9 +20,10 @@
 #include "FreeMonoBold24pt7b.h"
 
 #include "sauna.h"
-#include "LcdKeyboard.h"
 #include "WifiWrap.h"
+#include "Screen.h"
 #include "ScreenStatus.h"
+#include "ScreenConfig.h"
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -99,14 +100,17 @@ uint8_t target = 30;
 
 state_t state;
 
+screen_t screen, screen_last;
 
-ScreenStatus screenStatus(lcd, temp, target, state);
+ScreenStatus screenStatus(lcd, temp, target, state, screen);
+ScreenConfig screenConfig(lcd, wifi, screen);
 
-
+Screen* currScreen;
 
 
 bool pressed_last = false;
 bool pressed_curr = false;
+
 
 TSPoint handleTouch()
 {
@@ -178,7 +182,7 @@ void loop() {
     wifi.handleHttpReq(target, temp, state);
 
     TSPoint p = handleTouch();
-    screenStatus.handle_buttons(p);
+    currScreen->handle_buttons(p);
 
     // State machine
     switch (state) {
@@ -209,7 +213,21 @@ void loop() {
         digitalWrite(HEATING_OUT, LOW);
     }
 
-    screenStatus.tick();
+    currScreen->tick();
+
+    // Display the whole screen
+    if (screen_last != screen) {
+        switch(screen) {
+            case SCREEN_STATUS:
+                currScreen = &screenStatus;
+                break;
+            case SCREEN_CONFIG:
+                currScreen = &screenConfig;
+                break;
+        }
+        currScreen->display();
+        screen_last = screen;
+    }
 }
 
 
@@ -226,6 +244,9 @@ void setup() {
     Serial1.begin(115200);
     Serial1.setTimeout(1000);
     state = OFF;
+    screen = SCREEN_STATUS;
+    currScreen = &screenStatus;
+
 
     // Init TFT
     uint16_t identifier = lcd.readID();
@@ -238,7 +259,6 @@ void setup() {
 
 
 /*
-    LcdKeyboard keyboard(lcd);
     keyboard.draw();
 
     while(1) {
@@ -293,5 +313,5 @@ void setup() {
 
     Serial.println("Initialized");
 
-    screenStatus.display();
+    currScreen->display();
 }

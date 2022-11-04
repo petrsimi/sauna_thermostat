@@ -56,8 +56,8 @@ static bool timer_btm_cb(void* temp)
 }
 
 
-ScreenStatus::ScreenStatus(Adafruit_TFTLCD& lcd, uint16_t& temp, uint8_t& target, state_t& state) :
-   lcd(lcd), temp(temp), target(target), state(state)
+ScreenStatus::ScreenStatus(Adafruit_TFTLCD& lcd, uint16_t& temp, uint8_t& target, state_t& state, screen_t& screen) :
+   lcd(lcd), temp(temp), target(target), state(state), screen(screen)
 {
     target_last = 0;
     memset(last_temp_str, 0, sizeof(last_temp_str));
@@ -74,10 +74,13 @@ void ScreenStatus::display()
     btn_plus.drawButton();
 
     btn_on.initButton(&lcd, 280, 210, 60, 60, WHITE, BLACK, WHITE, "ON", 3);
-    btn_on.drawButton(false);
+    btn_on.drawButton(state != OFF);
 
     btn_cfg.initButton(&lcd, 280, 150, 60, 40, WHITE, BLACK, WHITE, "Conf", 2);
     btn_cfg.drawButton(false);
+
+    print_target();
+    print_temperature();
 }
 
 
@@ -127,7 +130,7 @@ uint16_t ScreenStatus::draw_char(uint16_t x, uint16_t y, uint8_t size, uint16_t 
 }
 
 
-void ScreenStatus::print_temperature(uint16_t temp)
+void ScreenStatus::print_temperature()
 {
     // convert raw temperature to fixed point Celsius
     uint8_t div = temp / 128;
@@ -212,7 +215,7 @@ void ScreenStatus::tick()
     if (state_last != state || temp != temp_last) {
         temp_last = temp;
         state_last = state;
-        print_temperature(temp);
+        print_temperature();
     }
 
 }
@@ -260,11 +263,9 @@ void ScreenStatus::handle_buttons(TSPoint& p)
     if (btn_on.justPressed()) {
         switch (state) {
             case OFF:
-//                btn_on.drawButton(true);
                 state = ON;
                 break;
             default:
-//                btn_on.drawButton(false);
                 state = OFF;
                 break;
         }
@@ -274,5 +275,6 @@ void ScreenStatus::handle_buttons(TSPoint& p)
         btn_cfg.drawButton(true);
     } else if (btn_cfg.justReleased()) {
         btn_cfg.drawButton(false);
+        screen = SCREEN_CONFIG;
     }
 }

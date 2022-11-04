@@ -3,6 +3,7 @@
 #include "sauna.h"
 
 #include <Arduino.h>
+#include "Screen.h"
 #include <SPFD5408_Adafruit_GFX.h> // Core graphics library
 #include <SPFD5408_Adafruit_TFTLCD.h> // Hardware-specific library
 #include <SPFD5408_TouchScreen.h>
@@ -10,9 +11,9 @@
 #include "gfxfont.h"
 
 
-class ScreenStatus {
+class ScreenStatus : public Screen {
     public:
-        ScreenStatus(Adafruit_TFTLCD& lcd, uint16_t& temp, uint8_t& target, state_t& state);
+        ScreenStatus(Adafruit_TFTLCD& lcd, uint16_t& temp, uint8_t& target, state_t& state, screen_t& screen);
 
         void display();
 
@@ -23,7 +24,7 @@ class ScreenStatus {
     private:
         uint16_t draw_char(uint16_t x, uint16_t y, uint8_t size, uint16_t color, const GFXfont* font, char c);
 
-        void print_temperature(uint16_t temp);
+        void print_temperature();
         void print_target();
 
         Adafruit_GFX_Button btn_plus;
@@ -37,6 +38,7 @@ class ScreenStatus {
         uint16_t& temp;
         uint8_t& target;
         state_t& state;
+        screen_t& screen;
 
         uint16_t temp_last;
         uint8_t target_last;

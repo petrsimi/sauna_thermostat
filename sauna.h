@@ -9,3 +9,8 @@ typedef enum {
     HEATING,
     WAITING,
 } state_t;
+
+typedef enum {
+   SCREEN_STATUS,
+   SCREEN_CONFIG
+} screen_t;

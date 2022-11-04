@@ -107,38 +107,33 @@ bool WifiWrap::startHttpSrv()
 
 
 
-bool WifiWrap::displayWifiStatus(Adafruit_TFTLCD& lcd)
+bool WifiWrap::getWifiStatus(String& status)
 {
-    lcd.fillRect(10, 135, 300, 7, BLACK);
-    lcd.setCursor(10, 135);
-    lcd.setTextSize(1);
-    lcd.setTextColor(BLUE);
-
     if (!available) return false;
 
-    lcd.print("WiFi: ");
+    status = F("WiFi status: ");
 
     int start, end;
     String ssid = wifi->getNowConecAp();
     start = ssid.indexOf("+CWJAP:");
     if (start < 0) {
-        lcd.print(F("not connected"));
+        status += F("not connected");
         return false;
     }          
     start += 8;
     end = ssid.indexOf('"', start);
     if (end < 0) {
-        lcd.print(F("not connected"));
+        status += F("not connected");
         return false;
     }
     // display SSID
-    lcd.print(ssid.substring(start, end));
+    status += ssid.substring(start, end);
     // display rssi
-    lcd.print(" (");
+    status += " (";
     start = ssid.lastIndexOf(',') + 1;
     end = ssid.indexOf('\r', start);
-    lcd.print(ssid.substring(start, end));
-    lcd.print("dBm) ");
+    status += ssid.substring(start, end);
+    status += "dBm) ";
 
     String ip = wifi->getStationIp();
     start = ip.indexOf("ip:");
@@ -146,7 +141,7 @@ bool WifiWrap::displayWifiStatus(Adafruit_TFTLCD& lcd)
         start += 4;
         end = ip.indexOf('"', start);
         if (end >= 0) {
-            lcd.print(ip.substring(start, end));
+            status += ip.substring(start, end);
         }
     }            
 

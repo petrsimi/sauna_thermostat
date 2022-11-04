@@ -14,7 +14,7 @@ class WifiWrap {
 
         bool startHttpSrv();
 
-        bool displayWifiStatus(Adafruit_TFTLCD& lcd);
+        bool getWifiStatus(String& status);
 
         bool handleHttpReq(uint8_t& target, uint16_t& temp, state_t& state);
 
