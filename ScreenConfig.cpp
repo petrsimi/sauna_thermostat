@@ -21,9 +21,11 @@ static bool timerWifiStatus_cb(void* ptr)
 
 
 ScreenConfig::ScreenConfig(Adafruit_TFTLCD& lcd, WifiWrap& wifi, screen_t& screen) :
-   lcd(lcd), wifi(wifi), screen(screen), keyboard(lcd)
+   lcd(lcd), wifi(wifi), screen(screen)
 {
     timerWifiStatus.every(15000, timerWifiStatus_cb, this);
+    btnConnect.initButton(&lcd, 160, 160, 250, 40, WHITE, BLACK, WHITE, "Reconnect", 2);
+    btnExit.initButton(&lcd, 160, 210, 250, 40, WHITE, BLACK, WHITE, "Exit", 2);
 }
 
 
@@ -43,9 +45,11 @@ void ScreenConfig::display()
 {
     lcd.fillScreen(BLACK);
 
-    keyboard.draw();
+    //keyboard.draw();
 
     displayWifiStatus();
+    btnConnect.drawButton();
+    btnExit.drawButton();
 }
 
 
@@ -56,9 +60,38 @@ void ScreenConfig::tick()
 
 void ScreenConfig::handle_buttons(TSPoint& p)
 {
+    if (p.z != 0) {
+        if (btnExit.contains(p.x, p.y)) {
+            btnExit.press(true);
+        }
+        if (btnConnect.contains(p.x, p.y)) {
+            btnConnect.press(true);
+        }
+    } else {
+        btnExit.press(false);
+        btnConnect.press(false);
+    }
+
+    if (btnExit.justPressed()) {
+        btnExit.drawButton(true);
+    } else if (btnExit.justReleased()) {
+        btnExit.drawButton(false);
+        screen = SCREEN_STATUS;
+    }
+
+    if (btnConnect.justPressed()) {
+        btnConnect.drawButton(true);
+    } else if (btnConnect.justReleased()) {
+        btnConnect.drawButton(false);
+        screen = SCREEN_CONFIG_SSID;
+    }
+
+
+/*
     char key = keyboard.handlePress(p.x, p.y, p.z);
 
     if (key == LcdKeyboard::KEY_ESC) {
         screen = SCREEN_STATUS;
     }
+*/
 }

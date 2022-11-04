@@ -12,5 +12,6 @@ typedef enum {
 
 typedef enum {
    SCREEN_STATUS,
-   SCREEN_CONFIG
+   SCREEN_CONFIG,
+   SCREEN_CONFIG_SSID
 } screen_t;

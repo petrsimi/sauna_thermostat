@@ -24,6 +24,7 @@
 #include "Screen.h"
 #include "ScreenStatus.h"
 #include "ScreenConfig.h"
+#include "ScreenConfigSsid.h"
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -104,6 +105,7 @@ screen_t screen, screen_last;
 
 ScreenStatus screenStatus(lcd, temp, target, state, screen);
 ScreenConfig screenConfig(lcd, wifi, screen);
+ScreenConfigSsid screenConfigSsid(lcd, screen);
 
 Screen* currScreen;
 
@@ -223,6 +225,9 @@ void loop() {
                 break;
             case SCREEN_CONFIG:
                 currScreen = &screenConfig;
+                break;
+            case SCREEN_CONFIG_SSID:
+                currScreen = &screenConfigSsid;
                 break;
         }
         currScreen->display();

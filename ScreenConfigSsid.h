@@ -4,22 +4,20 @@
 
 #include <Arduino.h>
 #include "Screen.h"
-#include "WifiWrap.h"
 #include <SPFD5408_Adafruit_GFX.h> // Core graphics library
 #include <SPFD5408_Adafruit_TFTLCD.h> // Hardware-specific library
 #include <SPFD5408_TouchScreen.h>
 #include <arduino-timer.h>
-//#include "LcdKeyboard.h"
+#include "LcdKeyboard.h"
 
 
 
 
-class ScreenConfig : public Screen {
+class ScreenConfigSsid : public Screen {
     public:
-        ScreenConfig(Adafruit_TFTLCD& lcd, WifiWrap& wifi, screen_t& screen);
+        ScreenConfigSsid(Adafruit_TFTLCD& lcd, screen_t& screen);
 
         void display();
-        void displayWifiStatus();
 
         void handle_buttons(TSPoint& p);
 
@@ -27,14 +25,12 @@ class ScreenConfig : public Screen {
 
     private:
 
+        void displaySsid(bool invert);
+
         Adafruit_TFTLCD& lcd;
-        WifiWrap& wifi;
         screen_t& screen;
 
-        Timer<1, millis> timerWifiStatus;
+        LcdKeyboard keyboard;
 
-//        LcdKeyboard keyboard;
-        Adafruit_GFX_Button btnConnect;
-        Adafruit_GFX_Button btnExit;
-
+        String ssid;
 };
