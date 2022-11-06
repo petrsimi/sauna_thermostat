@@ -23,6 +23,8 @@ class ScreenConfigSsid : public Screen {
 
         void tick();
 
+        String ssid;
+
     private:
 
         void displaySsid(bool invert);
@@ -31,6 +33,4 @@ class ScreenConfigSsid : public Screen {
         screen_t& screen;
 
         LcdKeyboard keyboard;
-
-        String ssid;
 };

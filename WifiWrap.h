@@ -18,6 +18,7 @@ class WifiWrap {
 
         bool handleHttpReq(uint8_t& target, uint16_t& temp, state_t& state);
 
+        bool joinAp(String ssid, String pwd);
 
     private:
         ESP8266* wifi;

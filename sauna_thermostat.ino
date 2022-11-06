@@ -228,6 +228,12 @@ void loop() {
                 break;
             case SCREEN_CONFIG:
                 currScreen = &screenConfig;
+                if (screenConfigPwd.pwdAvailable) {
+                    screenConfigPwd.pwdAvailable = false;
+                    if (!wifi.joinAp(screenConfigSsid.ssid, screenConfigPwd.pwd)) {
+                        Serial.println("Failed to connect to the AP.");
+                    }
+                }
                 break;
             case SCREEN_CONFIG_SSID:
                 currScreen = &screenConfigSsid;

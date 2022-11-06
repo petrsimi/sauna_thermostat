@@ -16,6 +16,7 @@
 ScreenConfigPwd::ScreenConfigPwd(Adafruit_TFTLCD& lcd, screen_t& screen) :
    lcd(lcd), screen(screen), keyboard(lcd)
 {
+    pwdAvailable = false;
 }
 
 
@@ -26,7 +27,7 @@ void ScreenConfigPwd::display()
     lcd.setTextSize(2);
     lcd.setTextColor(CYAN);
 
-    lcd.print("Zadejte nove heslo:");
+    lcd.print("Zadejte heslo:");
 
     keyboard.draw();
 }
@@ -50,6 +51,10 @@ void ScreenConfigPwd::handle_buttons(TSPoint& p)
 
     if (key == LcdKeyboard::KEY_ESC) {
         screen = SCREEN_CONFIG;
+        pwd = "";
+    } else if (key == LcdKeyboard::KEY_ENTER) {
+        screen = SCREEN_CONFIG;
+        pwdAvailable = true;
     } else if (key == LcdKeyboard::KEY_BACKSPACE) {
         // clear the old text
         displayPwd(true);

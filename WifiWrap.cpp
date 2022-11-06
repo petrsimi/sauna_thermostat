@@ -47,14 +47,8 @@ bool WifiWrap::isAlive()
     return available;
 }
 
-
-bool WifiWrap::startHttpSrv()
+bool WifiWrap::joinAp(String ssid, String pwd)
 {
-    // Is the WiFi modul connected?
-    if (!available) {
-        return false;
-    }
-
     if (!wifi->setOprToStation()) {
         Serial.println(F("ERROR: Failed to set WiFi Station mode"));
         return false;
@@ -64,21 +58,19 @@ bool WifiWrap::startHttpSrv()
         Serial.println(F("ERROR: enableMUX failed"));
         return false;
     }
-/*
-    if (!wifi->joinAP("simi", "KockaLezeDirouPesOknem")) {
-        Serial.println("Failed to connect to the AP.");
-        return false;
+
+    if (ssid != "" && pwd != "") {
+        if (!wifi->joinAP(ssid.c_str(), pwd.c_str())) {
+            Serial.println(F("ERROR: Failed to connect to the AP."));
+            return false;
+        }
     }
-*/
+
     if (!wifi->setAutoConnect(true)) {
         Serial.println(F("ERROR: setAutoConnect failed"));
         return false;      
     }
-/*
-    Serial.println(F("Network settings:"));
-    String ip = wifi->getStationIp();
-    Serial.println(ip.c_str());
-*/
+
     if (!wifi->startTCPServer(80)) {
         Serial.println(F("ERROR: Failed to start TCP server"));
         return false;
@@ -89,6 +81,16 @@ bool WifiWrap::startHttpSrv()
         return false;
     }
 
+    return true;
+}
+
+
+bool WifiWrap::startHttpSrv()
+{
+    // Is the WiFi modul connected?
+    if (!available) {
+        return false;
+    }
 
 /*
   while (1) {
@@ -100,7 +102,8 @@ bool WifiWrap::startHttpSrv()
     }
   }
 */
-    return true;
+
+    return joinAp("", "");
 }
 
 
@@ -109,31 +112,37 @@ bool WifiWrap::startHttpSrv()
 
 bool WifiWrap::getWifiStatus(String& status)
 {
-    if (!available) return false;
+    status = "";
 
-    status = F("WiFi status: ");
+    isAlive();
+
+    if (!available) {
+        status = F("CHYBA: WiFi modul nebyl detekovan. Prosim, restartujte zarizeni.");
+        return false;
+    }
 
     int start, end;
     String ssid = wifi->getNowConecAp();
     start = ssid.indexOf("+CWJAP:");
     if (start < 0) {
-        status += F("not connected");
+        status = F("WiFi neni pripojena");
         return false;
     }          
     start += 8;
     end = ssid.indexOf('"', start);
     if (end < 0) {
-        status += F("not connected");
+        status = F("WiFi neni pripojena");
         return false;
     }
     // display SSID
+    status += "SSID: ";
     status += ssid.substring(start, end);
     // display rssi
-    status += " (";
+    status += "\nSila signalu: ";
     start = ssid.lastIndexOf(',') + 1;
     end = ssid.indexOf('\r', start);
     status += ssid.substring(start, end);
-    status += "dBm) ";
+    status += "dBm\nIP: ";
 
     String ip = wifi->getStationIp();
     start = ip.indexOf("ip:");

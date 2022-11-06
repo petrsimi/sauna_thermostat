@@ -23,6 +23,10 @@ class ScreenConfigPwd : public Screen {
 
         void tick();
 
+        bool pwdAvailable;
+
+        String pwd;
+
     private:
 
         void displayPwd(bool invert);
@@ -31,6 +35,4 @@ class ScreenConfigPwd : public Screen {
         screen_t& screen;
 
         LcdKeyboard keyboard;
-
-        String pwd;
 };

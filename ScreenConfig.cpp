@@ -24,17 +24,17 @@ ScreenConfig::ScreenConfig(Adafruit_TFTLCD& lcd, WifiWrap& wifi, screen_t& scree
    lcd(lcd), wifi(wifi), screen(screen)
 {
     timerWifiStatus.every(15000, timerWifiStatus_cb, this);
-    btnConnect.initButton(&lcd, 160, 160, 250, 40, WHITE, BLACK, WHITE, "Reconnect", 2);
-    btnExit.initButton(&lcd, 160, 210, 250, 40, WHITE, BLACK, WHITE, "Exit", 2);
+    btnConnect.initButton(&lcd, 160, 160, 250, 40, WHITE, BLACK, WHITE, "Nastavit", 2);
+    btnExit.initButton(&lcd, 160, 210, 250, 40, WHITE, BLACK, WHITE, "Zrusit", 2);
 }
 
 
 void ScreenConfig::displayWifiStatus()
 {
-    lcd.fillRect(10, 10, 300, 7, BLACK);
-    lcd.setCursor(10, 10);
-    lcd.setTextSize(1);
-    lcd.setTextColor(BLUE);
+    lcd.fillRect(0, 0, 320, 60, BLACK);
+    lcd.setCursor(0, 0);
+    lcd.setTextSize(2);
+    lcd.setTextColor(WHITE);
 
     String status;
     wifi.getWifiStatus(status);
@@ -44,8 +44,6 @@ void ScreenConfig::displayWifiStatus()
 void ScreenConfig::display()
 {
     lcd.fillScreen(BLACK);
-
-    //keyboard.draw();
 
     displayWifiStatus();
     btnConnect.drawButton();
@@ -85,13 +83,4 @@ void ScreenConfig::handle_buttons(TSPoint& p)
         btnConnect.drawButton(false);
         screen = SCREEN_CONFIG_SSID;
     }
-
-
-/*
-    char key = keyboard.handlePress(p.x, p.y, p.z);
-
-    if (key == LcdKeyboard::KEY_ESC) {
-        screen = SCREEN_STATUS;
-    }
-*/
 }

@@ -27,7 +27,7 @@ void ScreenConfigSsid::display()
     lcd.setTextSize(2);
     lcd.setTextColor(CYAN);
 
-    lcd.print("Zadejte nove SSID:");
+    lcd.print("Zadejte SSID:");
 
     keyboard.draw();
 }
@@ -51,6 +51,7 @@ void ScreenConfigSsid::handle_buttons(TSPoint& p)
 
     if (key == LcdKeyboard::KEY_ESC) {
         screen = SCREEN_CONFIG;
+        ssid = "";
     } else if (key == LcdKeyboard::KEY_ENTER) {
         screen = SCREEN_CONFIG_PWD;
     } else if (key == LcdKeyboard::KEY_BACKSPACE) {
