@@ -56,8 +56,8 @@ static bool timer_btm_cb(void* temp)
 }
 
 
-ScreenStatus::ScreenStatus(Adafruit_TFTLCD& lcd, uint16_t& temp, uint8_t& target, state_t& state, screen_t& screen) :
-   lcd(lcd), temp(temp), target(target), state(state), screen(screen)
+ScreenStatus::ScreenStatus(Adafruit_TFTLCD& lcd, uint16_t& temp, uint8_t& target, state_t& state, bool& ventilator, screen_t& screen) :
+   lcd(lcd), temp(temp), target(target), state(state), ventilator(ventilator), screen(screen)
 {
     target_last = 0;
     memset(last_temp_str, 0, sizeof(last_temp_str));
@@ -76,8 +76,11 @@ void ScreenStatus::display()
     btn_on.initButton(&lcd, 280, 210, 60, 60, WHITE, BLACK, WHITE, "ON", 3);
     btn_on.drawButton(state != OFF);
 
-    btn_cfg.initButton(&lcd, 280, 150, 60, 40, WHITE, BLACK, WHITE, "Conf", 2);
+    btn_cfg.initButton(&lcd, 40, 150, 60, 40, WHITE, BLACK, WHITE, "WiFi", 2);
     btn_cfg.drawButton(false);
+
+    btn_vent.initButton(&lcd, 280, 150, 60, 40, WHITE, BLACK, WHITE, "Vent", 2);
+    btn_vent.drawButton(ventilator);
 
     print_target();
     print_temperature();
@@ -239,11 +242,15 @@ void ScreenStatus::handle_buttons(TSPoint& p)
         if (btn_cfg.contains(p.x, p.y)) {
             btn_cfg.press(true);
         }
+        if (btn_vent.contains(p.x, p.y)) {
+            btn_vent.press(true);
+        }
     } else {
         btn_plus.press(false);
         btn_minus.press(false);
         btn_on.press(false);
         btn_cfg.press(false);
+        btn_vent.press(false);
     }
 
     if (btn_plus.justPressed()) {
@@ -276,5 +283,10 @@ void ScreenStatus::handle_buttons(TSPoint& p)
     } else if (btn_cfg.justReleased()) {
         btn_cfg.drawButton(false);
         screen = SCREEN_CONFIG;
+    }
+
+    if (btn_vent.justPressed()) {
+        ventilator = !ventilator;
+        btn_vent.drawButton(ventilator);
     }
 }

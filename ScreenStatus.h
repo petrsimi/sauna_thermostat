@@ -13,7 +13,7 @@
 
 class ScreenStatus : public Screen {
     public:
-        ScreenStatus(Adafruit_TFTLCD& lcd, uint16_t& temp, uint8_t& target, state_t& state, screen_t& screen);
+        ScreenStatus(Adafruit_TFTLCD& lcd, uint16_t& temp, uint8_t& target, state_t& state, bool& ventilator, screen_t& screen);
 
         void display();
 
@@ -31,6 +31,7 @@ class ScreenStatus : public Screen {
         Adafruit_GFX_Button btn_minus;
         Adafruit_GFX_Button btn_on;
         Adafruit_GFX_Button btn_cfg;
+        Adafruit_GFX_Button btn_vent;
 
         Timer<1, millis> timer_btn;
 
@@ -38,6 +39,7 @@ class ScreenStatus : public Screen {
         uint16_t& temp;
         uint8_t& target;
         state_t& state;
+        bool& ventilator;
         screen_t& screen;
 
         uint16_t temp_last;

@@ -27,7 +27,7 @@ void ScreenConfigPwd::display()
     lcd.setTextSize(2);
     lcd.setTextColor(CYAN);
 
-    lcd.print("Zadejte heslo:");
+    lcd.print(F("Zadejte heslo:"));
 
     keyboard.draw();
 }

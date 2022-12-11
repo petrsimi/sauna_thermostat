@@ -27,7 +27,7 @@ void ScreenConfigSsid::display()
     lcd.setTextSize(2);
     lcd.setTextColor(CYAN);
 
-    lcd.print("Zadejte SSID:");
+    lcd.print(F("Zadejte SSID:"));
 
     keyboard.draw();
 }

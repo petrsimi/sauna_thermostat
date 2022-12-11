@@ -38,6 +38,9 @@ const int XP=6,XM=A2,YP=A1,YM=7; //ID=0x9341
 // Output to drive Heater
 #define HEATING_OUT     24
 
+// Output to drive Heater
+#define VENTILATOR_OUT     44
+
 // Assign human-readable names to some common 16-bit color values:
 #define BLACK   0x0000
 #define BLUE    0x001F
@@ -100,11 +103,14 @@ uint16_t temp = 0; ///< current temperature
 uint8_t target = 30;
 
 
+bool ventilator = false;
+
+
 state_t state;
 
 screen_t screen, screen_last;
 
-ScreenStatus screenStatus(lcd, temp, target, state, screen);
+ScreenStatus screenStatus(lcd, temp, target, state, ventilator, screen);
 ScreenConfig screenConfig(lcd, wifi, screen);
 ScreenConfigSsid screenConfigSsid(lcd, screen);
 ScreenConfigPwd screenConfigPwd(lcd, screen);
@@ -173,6 +179,7 @@ bool timer_shutdown_cb(void*)
 {
     Serial.println("Timeout expired. Turning off the heating.");
     state = OFF;
+    ventilator = false;
     return false;
 }
 
@@ -218,6 +225,8 @@ void loop() {
         digitalWrite(HEATING_OUT, LOW);
     }
 
+    digitalWrite(VENTILATOR_OUT, ventilator ? HIGH : LOW);
+
     currScreen->tick();
 
     // Display the whole screen
@@ -231,7 +240,7 @@ void loop() {
                 if (screenConfigPwd.pwdAvailable) {
                     screenConfigPwd.pwdAvailable = false;
                     if (!wifi.joinAp(screenConfigSsid.ssid, screenConfigPwd.pwd)) {
-                        Serial.println("Failed to connect to the AP.");
+                        Serial.println(F("Failed to connect to the AP."));
                     }
                 }
                 break;
@@ -256,6 +265,9 @@ void setup() {
 
     pinMode(HEATING_OUT, OUTPUT);
     digitalWrite(HEATING_OUT, LOW);
+
+    pinMode(VENTILATOR_OUT, OUTPUT);
+    digitalWrite(VENTILATOR_OUT, LOW);
 
     Serial.begin(9600); // open the serial port at 9600 bps
     Serial1.begin(115200);
@@ -328,7 +340,7 @@ void setup() {
     // Start HTTP server
     wifi.startHttpSrv();
 
-    Serial.println("Initialized");
+    Serial.println(F("Initialized"));
 
     currScreen->display();
 }
