@@ -197,7 +197,7 @@ bool WifiWrap::handleHttpReq(uint8_t& target, uint16_t& temp, state_t& state)
 
     // Send the HTTP web page
     int size = snprintf(buffer, 1024, httpContent,
-        (state == HEATING) ? "red" : (state == OFF ? "black" : "limegreen"),
+        (state == OFF) ? "black" : (target > div ? "red" : "limegreen"),
         div,
         mod,
         target,
