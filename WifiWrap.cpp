@@ -25,7 +25,7 @@ static const char httpContent[] = "<html>\
 <script>\
 function disableBtn(id){\
 document.getElementById(id).disabled=true;\
-setTimeout(function() {document.getElementById(id).disabled=false;}, 5000);\
+setTimeout(function() {document.getElementById(id).disabled=false;}, 2000);\
 }\
 </script>\
 </head>\
