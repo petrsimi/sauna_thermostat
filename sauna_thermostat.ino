@@ -100,7 +100,7 @@ uint16_t temp_out = 0;
 
 uint16_t temp = 0; ///< current temperature
 
-uint8_t target = 30;
+uint8_t target = 80;
 
 
 bool ventilator = false;

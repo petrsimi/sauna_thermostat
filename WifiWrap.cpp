@@ -20,18 +20,31 @@
 
 static const char httpContent[] = "<html>\
 <head>\
-<meta http-equiv='refresh' content='10'>\
 <title>Sauna</title>\
 <style>button {font-size:40pt;width:90pt;height:90pt;margin:10pt;}</style>\
+<script>\
+function disableBtn(id){\
+document.getElementById(id).disabled=true;\
+setTimeout(function() {document.getElementById(id).disabled=false;}, 5000);\
+}\
+</script>\
 </head>\
 <body style='text-align:center'>\
 <p style='font-size:160pt;margin:30pt;color:%s'><b>%u.%u</b> &#176;C</p>\
 <form action='.' method='post'>\
-<button type='submit' name='btnMinus'>-</button>\
+<button type='submit' name='btnMinus' id='btnMinus'>-</button>\
 <span style='font-size:50pt;display:inline-block;width:200pt;'>%u &#176;C</span>\
-<button type='submit' name='btnPlus'>+</button><button type='submit' name='btnOnOff'>%s</button>\
+<button type='submit' name='btnPlus' id='btnPlus'>+</button>\
+<button type='submit' name='btnOnOff' id='btnOnOff'>%s</button>\
+<p><button style='width:500pt;' onClick='window.location.reload();' id='btnAktual'>Aktualizovat</button></p>\
 </form>\
 </body>\
+<script>\
+disableBtn('btnOnOff');\
+disableBtn('btnPlus');\
+disableBtn('btnMinus');\
+disableBtn('btnAktual');\
+</script>\
 </html>";
 
 
