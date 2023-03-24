@@ -58,12 +58,19 @@ const int XP=6,XM=A2,YP=A1,YM=7; //ID=0x9341
 #define LCD_RD A0 // LCD Read goes to Analog 0
 #define LCD_RESET A4 // LCD RESET goes to Analog 4
 
-#define TS_MINX 73
-#define TS_MINY 135
-#define TS_MAXX 860
-#define TS_MAXY 900
+// new display which is not used
+//#define TS_MINX 73
+//#define TS_MINY 135
+//#define TS_MAXX 860
+//#define TS_MAXY 900
 
-#define MINPRESSURE 200
+// Old display used in sauna
+#define TS_MINX 170
+#define TS_MINY 110
+#define TS_MAXX 910
+#define TS_MAXY 830
+
+#define MINPRESSURE 250
 #define MAXPRESSURE 1000
 
 #define EEPROM_MAX_SIZE 256
@@ -96,8 +103,6 @@ Timer<1, millis> timer_sensor;
 
 const unsigned long shutdown_interval = 3l * 60 * 60 * 1000; // 3 hours in miliseconds
 
-uint16_t temp_out = 0;
-
 uint16_t temp = 0; ///< current temperature
 
 uint8_t target = 80;
@@ -128,9 +133,9 @@ TSPoint handleTouch()
     digitalWrite(13, HIGH);
     TSPoint p = ts.getPoint();
     // swap axis
-    int16_t tmp = p.x;
-    p.x = p.y;
-    p.y = tmp;
+    //int16_t tmp = p.x;
+    //p.x = p.y;
+    //p.y = tmp;
     digitalWrite(13, LOW);
 
 
@@ -143,16 +148,16 @@ TSPoint handleTouch()
     pressed_last = pressed_curr;
 
     pressed_curr = false;
-    p.x = map(p.x, TS_MINX, TS_MAXX, 0, lcd.width());
-    p.y = map(p.y, TS_MAXY, TS_MINY, 0, lcd.height());
     if (p.z > MINPRESSURE && p.z < MAXPRESSURE) {
 /*
-            Serial.print("X = "); Serial.print(p.x);
-            Serial.print("\tY = "); Serial.print(p.y);
-            Serial.print("\tPressure = "); Serial.println(p.z);
+        Serial.print("X = "); Serial.print(p.x);
+        Serial.print("\tY = "); Serial.print(p.y);
+        Serial.print("\tPressure = "); Serial.println(p.z);
 */
         pressed_curr = true;
     }
+    p.x = map(p.x, TS_MINX, TS_MAXX, 0, lcd.width());
+    p.y = map(p.y, TS_MINY, TS_MAXY, 0, lcd.height());
 
     p.z = pressed_last && pressed_curr;
 
