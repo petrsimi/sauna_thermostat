@@ -170,12 +170,43 @@ bool timer_sensor_cb(void* temp)
 {
     uint16_t* tmp = (uint16_t*) temp;
 
+/*
     //sensors.requestTemperaturesByAddress(sensors_addr);
     sensors.requestTemperatures();
     *tmp = sensors.getTemp(sensors_addr);
     // multiply by 9% as the sensor was showing 70 degree while the real temperature was 76
     uint32_t aaa = (*tmp);
     *tmp = aaa * 109/100;
+*/
+
+    sensors.requestTemperatures();
+    uint16_t current = sensors.getTemp(sensors_addr);
+    // multiply by 9% as the sensor was showing 70 degree while the real temperature was 76
+    uint32_t aaa = current;
+    current = aaa * 109/100;
+
+    static uint8_t count = 0;
+    static uint16_t temp_avg[5];
+
+    if (count < 5) {
+        temp_avg[count] = current;
+        count++;
+    } else {
+        // Remove the oldest value and shift the fifo.
+        for (int i = 1; i < count; i++) {
+            temp_avg[i-1] = temp_avg[i];
+        }
+        // Store the newest value
+        temp_avg[4] = current;
+    }
+
+    uint32_t sum = 0;
+
+    for (int i = 0; i < count; i++) {
+        sum += temp_avg[i];
+    }
+    *tmp = sum / count;
+
     return true; // to repeat the action - false to stop
 }
 
